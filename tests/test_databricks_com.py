@@ -18,7 +18,9 @@ def setUpModule():
         'log_manager',
         'splunk',
         'splunk.rest',
+        'splunk.admin',
         'splunk.clilib',
+        'splunk.clilib.cli_common',
         'solnlib.server_info',
     ]
 

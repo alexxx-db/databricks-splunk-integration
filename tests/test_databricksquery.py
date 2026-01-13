@@ -10,7 +10,9 @@ def setUpModule():
         'log_manager',
         'splunk',
         'splunk.rest',
+        'splunk.admin',
         'splunk.clilib',
+        'splunk.clilib.cli_common',
         'solnlib.server_info',
         'splunk_aoblib',
         'splunk_aoblib.rest_migration'
@@ -34,18 +36,27 @@ class TestDatabricksQuery(unittest.TestCase):
         cls.databricksquery = databricksquery
         cls.DatabricksQueryCommand = databricksquery.DatabricksQueryCommand
     
-    @patch("databricksquery.utils", autospec=True)
-    def test_cluster_exception(self, mock_utils):
+    @patch("databricksquery.utils.get_databricks_configs")
+    def test_cluster_exception(self, mock_get_config):
         db_query_obj = self.DatabricksQueryCommand()
         db_query_obj._metadata = MagicMock()
+        db_query_obj.account_name = "test_account"
         db_query_obj.write_error = MagicMock()
-        mock_utils.get_databricks_configs.return_value = {"type": "pat"}
+        # Configure the mock to return the expected value
+        mock_get_config.return_value = {
+            "auth_type": "PAT",
+            "databricks_instance": "test.databricks.com",
+            "databricks_pat": "test_token",
+            "config_for_dbquery": "interactive_cluster",
+            "cluster_name": None,
+            "admin_command_timeout": "300"
+        }
         resp = db_query_obj.generate()
         try:
             next(resp)
         except StopIteration:
             pass
-        mock_utils.get_databricks_configs.assert_called_once()
+        self.assertTrue(mock_get_config.called)
         db_query_obj.write_error.assert_called_once_with("Databricks cluster is required to execute this custom command. Provide a cluster parameter or configure the cluster in the TA's configuration page.")
 
     @patch("databricksquery.com.DatabricksClient", autospec=True)
