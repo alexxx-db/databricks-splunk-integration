@@ -7,15 +7,18 @@ This is an add-on powered by the Splunk Add-on Builder.
 The Databricks Add-on for Splunk is used to query Databricks data and execute Databricks notebooks from Splunk.
 
 * Author - Databricks, Inc.
-* Version - 1.4.1
+* Version - 1.4.2
 * Creates Index - False
 * Prerequisites -
   * This application requires appropriate credentials to query data from the Databricks platform. For Details refer to Configuration > Add Databricks Credentials section.
 * Compatible with:
-    * Splunk Enterprise version: 9.2.x, 9.1.x and 9.0.x
+    * Splunk Enterprise version: 9.3.x, 9.2.x and 9.1.x
     * REST API: 1.2 and 2.0
     * OS: Platform independent
     * Browser: Safari, Chrome and Firefox
+
+# RELEASE NOTES VERSION 1.4.2
+* Updated the Splunk SDK to v2.1.0 to ensure Splunk Cloud compatibility
 
 # RELEASE NOTES VERSION 1.4.1
 * Modified timestamp format for log messages.
@@ -285,6 +288,10 @@ When this alert action is run as an Adaptive response action from "Enterprise Se
 * Check the Upgrade checkbox.
 * Click on Upload.
 * Restart Splunk.
+
+## Upgrade from Databricks Add-On for Splunk v1.4.1 to v1.4.2
+* Follow the General upgrade steps section.
+* No additional steps are required.
 
 ## Upgrade from Databricks Add-On for Splunk v1.4.0 to v1.4.1
 * Follow the General upgrade steps section.
