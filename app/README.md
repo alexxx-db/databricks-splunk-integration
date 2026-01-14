@@ -81,6 +81,15 @@ The Databricks Add-on for Splunk is used to query Databricks data and execute Da
 # INSTALLATION
 Databricks Add-on for Splunk can be installed through UI using "Manage Apps" > "Install the app from file" or by extracting tarball directly into $SPLUNK_HOME/etc/apps/ folder.
 
+# TESTING
+
+Test coverage: > 90%
+
+Run tests with coverage:
+```bash
+pytest --cov-config=tests/.coveragerc --cov=app/bin --cov-report=term-missing --cov-report=xml:coverage.xml tests
+```
+
 # CAPABILITIES
 
 * Users with an 'admin' role can do the Configuration of the Account and Proxy, whereas users without an 'admin' role can't do the Configuration or view it.
