@@ -10,7 +10,9 @@ def setUpModule():
         'log_manager',
         'splunk',
         'splunk.rest',
+        'splunk.admin',
         'splunk.clilib',
+        'splunk.clilib.cli_common',
         'solnlib.server_info',
         'splunk_aoblib',
         'splunk_aoblib.rest_migration'
@@ -139,15 +141,6 @@ class TestDatabricksjob(unittest.TestCase):
     @patch("databricksjob.com.DatabricksClient", autospec=True)
     @patch("databricksjob.utils", autospec=True)
     def test_fetch_job_data(self, mock_utils, mock_com):
-        ret_val = {"user": "test",
-            "created_time": "1234567890",
-            "param": "a=1||b=2",
-            "run_id": "123",
-            "output_url": "/test/resultsOnly",
-            "result_url": "/result_url",
-            "command_status": "success",
-            "error": "-"
-        }
         db_job_obj = self.DatabricksJobCommand()
         db_job_obj._metadata = MagicMock()
         db_job_obj.job_id = "123"
@@ -156,12 +149,13 @@ class TestDatabricksjob(unittest.TestCase):
         db_job_obj.write_error = MagicMock()
         client.databricks_api.side_effect = [{"settings": {"notebook_task": "test"}}, {"run_id": "1234"}, {"run_page_url": "/test/", "result_url": "/result_url"}]
         mock_utils.format_to_json_parameters.return_value = {"a":"1","b":"2"}
-        mock_utils.update_kv_store_collection.return_value =ret_val
+        mock_utils.get_databricks_configs.return_value = {"index": "test_index"}
         resp = db_job_obj.generate()
-        return_val  = next(resp)
-        self.assertEqual(client.databricks_api.call_count,3)
-        mock_utils.update_kv_store_collection.assert_called_once()
-        assert return_val == ret_val
+        return_val = next(resp)
+        self.assertEqual(client.databricks_api.call_count, 3)
+        self.assertEqual(return_val["run_id"], "1234")
+        self.assertEqual(return_val["output_url"], "/test/")
+        self.assertEqual(return_val["command_submission_status"], "Success")
     
 
 

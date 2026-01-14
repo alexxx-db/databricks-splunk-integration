@@ -16,7 +16,9 @@ def setUpModule():
         'log_manager',
         'splunk',
         'splunk.rest',
+        'splunk.admin',
         'splunk.clilib',
+        'splunk.clilib.cli_common',
         'splunklib.client',
         'splunklib.results'
     ]
@@ -37,7 +39,7 @@ class TestDatabricksUtils(unittest.TestCase):
     def test_get_user_agent(self, mock_user):
         db_utils = import_module('databricks_common_utils')
         response = db_utils.get_user_agent()
-        self.assertEqual(response, "Databricks-AddOnFor-Splunk-1.2.0")
+        self.assertEqual(response, "Databricks-AddOnFor-Splunk-1.4.2")
     
     @patch("databricks_common_utils.client.connect")
     @patch("databricks_common_utils.client.connect.jobs.oneshot")
@@ -125,20 +127,6 @@ class TestDatabricksUtils(unittest.TestCase):
         db_utils._LOGGER.info.assert_called_with("Proxy is disabled. Skipping proxy mechanism.")
         self.assertEqual(proxy_uri, None)
 
-    @patch("databricks_common_utils.requests.post")
-    def test_update_kv_store_collection_if(self, mock_post):
-        db_utils = import_module('databricks_common_utils')
-        mock_post.return_value.status_code =  200
-        kv_resp = db_utils.update_kv_store_collection("splunk_uri", "run_collection","session_key", {})
-        self.assertEqual(kv_resp, {"kv_status": "KV Store updated successfully"})
-    
-    @patch("databricks_common_utils.requests.post")
-    def test_update_kv_store_collection_else(self, mock_post):
-        db_utils = import_module('databricks_common_utils')
-        mock_post.return_value.status_code =  400
-        kv_resp = db_utils.update_kv_store_collection("splunk_uri", "run_collection","session_key", {})
-        self.assertEqual(kv_resp, {"kv_status": "Error occurred while updating KV Store"})
-    
     def test_format_to_json_parameters(self):
         db_utils = import_module('databricks_common_utils')
         params = db_utils.format_to_json_parameters("a=1||b=2")

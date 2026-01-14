@@ -10,7 +10,9 @@ def setUpModule():
         'log_manager',
         'splunk',
         'splunk.rest',
+        'splunk.admin',
         'splunk.clilib',
+        'splunk.clilib.cli_common',
         'solnlib.server_info',
         'splunk_aoblib',
         'splunk_aoblib.rest_migration'
@@ -149,16 +151,6 @@ class TestDatabricksrun(unittest.TestCase):
     @patch("databricksrun.com.DatabricksClient", autospec=True)
     @patch("databricksrun.utils", autospec=True)
     def test_fetch_data(self, mock_utils, mock_com):
-        ret_val = {"user": "test",
-            "created_time": "1234567890",
-            "param": "a=1||b=2",
-            "run_id": "123",
-            "output_url": "/test/resultsOnly",
-            "result_url": "/result_url",
-            "command_status": "success",
-            "error": "-",
-            "identifier": "id1"
-        }
         db_run_obj = self.DatabricksRunCommand()
         db_run_obj._metadata = MagicMock()
         db_run_obj.notebook_path = "/test"
@@ -169,12 +161,14 @@ class TestDatabricksrun(unittest.TestCase):
         db_run_obj.run_name = "abc"
         client = mock_com.return_value = MagicMock()
         client.get_cluster_id.return_value = "c1"
-        mock_utils.format_to_json_parameters.return_value = {"a": 1, "b":2}
+        mock_utils.format_to_json_parameters.return_value = {"a": 1, "b": 2}
+        mock_utils.get_databricks_configs.return_value = {"index": "test_index"}
         db_run_obj.write_error = MagicMock()
-        client.databricks_api.side_effect = [{"run_id": "123"},{"run_page_url": "/test/", "result_url": "/result_url"}]
-        mock_utils.update_kv_store_collection.return_value =ret_val
+        client.databricks_api.side_effect = [{"run_id": "123"}, {"run_page_url": "/test/", "result_url": "/result_url"}]
         resp = db_run_obj.generate()
-        return_val  = next(resp)
-        self.assertEqual(client.databricks_api.call_count,2)
-        mock_utils.update_kv_store_collection.assert_called_once()
-        assert return_val == ret_val
+        return_val = next(resp)
+        self.assertEqual(client.databricks_api.call_count, 2)
+        self.assertEqual(return_val["run_id"], "123")
+        self.assertEqual(return_val["output_url"], "/test/")
+        self.assertEqual(return_val["identifier"], "id1")
+        self.assertEqual(return_val["command_submission_status"], "Success")
