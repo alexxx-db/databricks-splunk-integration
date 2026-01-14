@@ -9,11 +9,7 @@ class AuthSelectHook {
 
     onChange(field, value, dataDict) {
         if (field == 'auth_type') {
-            if (value == 'AAD') {
-                this.toggleAADFields(true);
-            } else {
-                this.toggleAADFields(false);
-            }
+            this.toggleAuthFields(value);
         }
         if (field == 'config_for_dbquery') {
             if (value == 'interactive_cluster') {
@@ -26,11 +22,7 @@ class AuthSelectHook {
 
     onRender() {
         var selected_auth = this.state.data.auth_type.value;
-        if (selected_auth == 'AAD') {
-            this.toggleAADFields(true);
-        } else {
-            this.toggleAADFields(false);
-        }
+        this.toggleAuthFields(selected_auth);
     }
 
     hideWarehouseField(state) {
@@ -41,13 +33,25 @@ class AuthSelectHook {
         }); 
     }
 
-    toggleAADFields(state) {
+    toggleAuthFields(authType) {
         this.util.setState((prevState) => {
             let data = {...prevState.data };
-            data.aad_client_id.display = state;
-            data.aad_tenant_id.display = state;
-            data.aad_client_secret.display = state;
-            data.databricks_pat.display = !state;
+
+            // OAuth M2M fields
+            const showOAuth = (authType === 'OAUTH_M2M');
+            data.oauth_client_id.display = showOAuth;
+            data.oauth_client_secret.display = showOAuth;
+
+            // AAD fields
+            const showAAD = (authType === 'AAD');
+            data.aad_client_id.display = showAAD;
+            data.aad_tenant_id.display = showAAD;
+            data.aad_client_secret.display = showAAD;
+
+            // PAT field
+            const showPAT = (authType === 'PAT');
+            data.databricks_pat.display = showPAT;
+
             return { data }
         });
     }

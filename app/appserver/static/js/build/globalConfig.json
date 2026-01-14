@@ -146,6 +146,10 @@
                                     {
                                         "label": "Azure Active Directory",
                                         "value": "AAD"
+                                    },
+                                    {
+                                        "label": "Databricks OAuth (M2M)",
+                                        "value": "OAUTH_M2M"
                                     }
                                 ]
                             },
@@ -200,6 +204,42 @@
                                 "minLength": 0,
                                 "maxLength": 200,
                                 "errorMsg": "Max length of Client Secret is 200"
+                            }],
+                            "options": {
+                                "placeholder": "required"
+                            }
+                        },
+                        {
+                            "field": "oauth_client_id",
+                            "label": "OAuth Client ID",
+                            "type": "text",
+                            "help": "Enter the Client ID from your Databricks service principal.",
+                            "required": false,
+                            "defaultValue": "",
+                            "encrypted": false,
+                            "validators": [{
+                                "type": "string",
+                                "minLength": 0,
+                                "maxLength": 200,
+                                "errorMsg": "Max length of OAuth Client ID is 200"
+                            }],
+                            "options": {
+                                "placeholder": "required"
+                            }
+                        },
+                        {
+                            "field": "oauth_client_secret",
+                            "label": "OAuth Client Secret",
+                            "type": "text",
+                            "help": "Enter the OAuth secret from your Databricks service principal.",
+                            "required": false,
+                            "defaultValue": "",
+                            "encrypted": true,
+                            "validators": [{
+                                "type": "string",
+                                "minLength": 0,
+                                "maxLength": 500,
+                                "errorMsg": "Max length of OAuth Client Secret is 500"
                             }],
                             "options": {
                                 "placeholder": "required"
@@ -318,7 +358,7 @@
                             "field": "use_for_oauth",
                             "label": "Use Proxy for OAuth",
                             "defaultValue": 0,
-                            "tooltip": "Check this box if you want to use proxy just for AAD token generation (https://login.microsoftonline.com/). All other network calls will skip the proxy even if it's enabled.",
+                            "tooltip": "Check this box if you want to use proxy just for Azure AD token generation (https://login.microsoftonline.com/). All other network calls (including Databricks API and OAuth M2M) will skip the proxy even if it's enabled.",
                             "type": "checkbox"
                         }
                     ],

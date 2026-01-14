@@ -63,6 +63,35 @@ fields = [
         validator=None
     ),
     field.RestField(
+        'oauth_client_id',
+        required=False,
+        encrypted=False,
+        default='',
+        validator=validator.String(
+            min_len=0,
+            max_len=200,
+        )
+    ),
+    field.RestField(
+        'oauth_client_secret',
+        required=False,
+        encrypted=True,
+        default='',
+        validator=None
+    ),
+    field.RestField(
+        'oauth_access_token',
+        required=False,
+        encrypted=True
+    ),
+    field.RestField(
+        'oauth_token_expiration',
+        required=False,
+        encrypted=False,
+        default='',
+        validator=None
+    ),
+    field.RestField(
         'databricks_pat',
         required=False,
         encrypted=True,
