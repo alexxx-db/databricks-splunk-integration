@@ -68,6 +68,47 @@ class ValidateDatabricksInstance(Validator):
         else:
             return False
 
+    def validate_oauth(self, data):
+        """
+        Validation flow if the user opts for OAuth M2M authentication.
+
+        :param data: Dictionary containing values from configuration UI.
+        :return: Boolean depending on the success of the connection
+        """
+        import time
+        _LOGGER.info('Obtaining OAuth M2M access token')
+        oauth_client_id = data.get("oauth_client_id").strip()
+        oauth_client_secret = data.get("oauth_client_secret").strip()
+        databricks_instance = data.get("databricks_instance").strip("/")
+        account_name = data.get("name")
+
+        result = utils.get_oauth_access_token(
+            self._splunk_session_key,
+            account_name,
+            databricks_instance,
+            oauth_client_id,
+            oauth_client_secret,
+            self._proxy_settings
+        )
+
+        if isinstance(result, tuple) and result[1] == False:
+            _LOGGER.error(result[0])
+            self.put_msg(result[0])
+            return False
+
+        access_token, expires_in = result
+        _LOGGER.info('Obtained OAuth M2M access token successfully.')
+
+        valid_instance = self.validate_db_instance(databricks_instance, access_token)
+        if valid_instance:
+            data["oauth_access_token"] = access_token
+            data["oauth_token_expiration"] = str(time.time() + expires_in)
+            data["databricks_pat"] = ""
+            data["aad_access_token"] = ""
+            return True
+        else:
+            return False
+
     def validate_db_instance(self, instance_url, access_token):
         """
         Method to validate databricks instance.
@@ -157,7 +198,7 @@ class ValidateDatabricksInstance(Validator):
                     ):
                 self.put_msg('Field Databricks Access Token is required')
                 return False
-        else:
+        elif auth_type == "AAD":
             if (not (data.get("aad_client_id", None)
                      and data.get("aad_client_id").strip())
                     ):
@@ -172,6 +213,17 @@ class ValidateDatabricksInstance(Validator):
                   and data.get("aad_client_secret").strip())
                   ):
                 self.put_msg('Field Client Secret is required')
+                return False
+        elif auth_type == "OAUTH_M2M":
+            if (not (data.get("oauth_client_id", None)
+                     and data.get("oauth_client_id").strip())
+                    ):
+                self.put_msg('Field OAuth Client ID is required')
+                return False
+            elif (not (data.get("oauth_client_secret", None)
+                  and data.get("oauth_client_secret").strip())
+                  ):
+                self.put_msg('Field OAuth Client Secret is required')
                 return False
         _LOGGER.info("Reading proxy and user data.")
         try:
@@ -191,5 +243,7 @@ class ValidateDatabricksInstance(Validator):
                 return False
         if auth_type == "PAT":
             return self.validate_pat(data)
-        else:
+        elif auth_type == "AAD":
             return self.validate_aad(data)
+        elif auth_type == "OAUTH_M2M":
+            return self.validate_oauth(data)

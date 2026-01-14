@@ -48,23 +48,40 @@ class DatabricksGetCredentials(PersistentServerConnectionApplication):
         # Saving Configurations
         if form_data.get('update_token'):
             try:
-                _LOGGER.info("Saving databricks AAD access token.")
-                client_sec = form_data.get("aad_client_secret")
-                access_token = form_data.get("aad_access_token")
+                # Determine which credentials to save based on what's provided
+                if form_data.get("aad_access_token"):
+                    _LOGGER.info("Saving databricks AAD access token.")
+                    client_sec = form_data.get("aad_client_secret")
+                    access_token = form_data.get("aad_access_token")
+                    new_creds = json.dumps({"aad_client_secret": client_sec, "aad_access_token": access_token})
+                    success_msg = 'Saved AAD access token successfully.'
+                elif form_data.get("oauth_access_token"):
+                    _LOGGER.info("Saving databricks OAuth access token.")
+                    client_sec = form_data.get("oauth_client_secret")
+                    access_token = form_data.get("oauth_access_token")
+                    token_expiration = form_data.get("oauth_token_expiration")
+                    new_creds = json.dumps({
+                        "oauth_client_secret": client_sec,
+                        "oauth_access_token": access_token,
+                        "oauth_token_expiration": token_expiration
+                    })
+                    success_msg = 'Saved OAuth access token successfully.'
+                else:
+                    raise Exception("No token data provided for update.")
+
                 manager = CredentialManager(
                     self.admin_session_key,
                     app=APP_NAME,
                     realm="__REST_CREDENTIAL__#{0}#{1}".format(APP_NAME, "configs/conf-ta_databricks_account"),
                 )
-                new_creds = json.dumps({"aad_client_secret": client_sec, "aad_access_token": access_token})
                 manager.set_password(self.account_name, new_creds)
-                _LOGGER.info("Saved AAD access token successfully.")
+                _LOGGER.info(success_msg)
                 return {
-                    'payload': 'Saved AAD access token successfully.',
+                    'payload': success_msg,
                     'status': 200
                 }
             except Exception as e:
-                error_msg = "Databricks Error: Exception while saving AAD access token: {}".format(str(e))
+                error_msg = "Databricks Error: Exception while saving access token: {}".format(str(e))
                 _LOGGER.error(error_msg)
                 _LOGGER.debug(traceback.format_exc())
                 return {
@@ -79,6 +96,10 @@ class DatabricksGetCredentials(PersistentServerConnectionApplication):
             'aad_tenant_id': None,
             'aad_client_secret': None,
             'aad_access_token': None,
+            'oauth_client_id': None,
+            'oauth_client_secret': None,
+            'oauth_access_token': None,
+            'oauth_token_expiration': None,
             'config_for_dbquery': None,
             'cluster_name': None,
             'warehouse_id': None,
@@ -130,11 +151,16 @@ class DatabricksGetCredentials(PersistentServerConnectionApplication):
 
             if config_dict['auth_type'] == 'PAT':
                 config_dict['databricks_pat'] = account_password.get('databricks_pat')
-            else:
+            elif config_dict['auth_type'] == 'AAD':
                 config_dict['aad_client_id'] = account_config.get('aad_client_id')
                 config_dict['aad_tenant_id'] = account_config.get('aad_tenant_id')
                 config_dict['aad_client_secret'] = account_password.get('aad_client_secret')
                 config_dict['aad_access_token'] = account_password.get('aad_access_token')
+            elif config_dict['auth_type'] == 'OAUTH_M2M':
+                config_dict['oauth_client_id'] = account_config.get('oauth_client_id')
+                config_dict['oauth_client_secret'] = account_password.get('oauth_client_secret')
+                config_dict['oauth_access_token'] = account_password.get('oauth_access_token')
+                config_dict['oauth_token_expiration'] = account_password.get('oauth_token_expiration')
 
             # Get proxy settings from conf
             _, proxy_response_content = rest.simpleRequest(

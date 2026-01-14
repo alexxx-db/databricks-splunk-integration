@@ -110,6 +110,137 @@ def save_databricks_aad_access_token(account_name, session_key, access_token, cl
         raise Exception("Exception while saving AAD access token.")
 
 
+def save_databricks_oauth_access_token(account_name, session_key, access_token, expires_in, client_secret):
+    """
+    Method to store new OAuth access token with expiration timestamp.
+
+    :param account_name: Account name
+    :param session_key: Splunk session key
+    :param access_token: OAuth access token
+    :param expires_in: Token lifetime in seconds
+    :param client_secret: OAuth client secret
+    :return: None
+    """
+    import time
+    new_creds = {
+        "name": account_name,
+        "oauth_client_secret": client_secret,
+        "oauth_access_token": access_token,
+        "oauth_token_expiration": str(time.time() + expires_in),
+        "update_token": True
+    }
+    try:
+        _LOGGER.info("Saving databricks OAuth access token.")
+        rest.simpleRequest(
+            "/databricks_get_credentials",
+            sessionKey=session_key,
+            postargs=new_creds,
+            raiseAllErrors=True,
+        )
+        _LOGGER.info("Saved OAuth access token successfully.")
+    except Exception as e:
+        _LOGGER.error("Exception while saving OAuth access token: {}".format(str(e)))
+        _LOGGER.debug(traceback.format_exc())
+        raise Exception("Exception while saving OAuth access token.")
+
+
+def get_oauth_access_token(
+    session_key,
+    account_name,
+    databricks_instance,
+    oauth_client_id,
+    oauth_client_secret,
+    proxy_settings=None,
+    retry=1,
+    conf_update=False,
+):
+    """
+    Method to acquire OAuth M2M access token for Databricks service principal.
+
+    :param session_key: Splunk session key
+    :param account_name: Account name for configuration storage
+    :param databricks_instance: Databricks workspace instance URL
+    :param oauth_client_id: OAuth client ID from service principal
+    :param oauth_client_secret: OAuth client secret from service principal
+    :param proxy_settings: Proxy configuration dict
+    :param retry: Number of retry attempts
+    :param conf_update: If True, store token in configuration
+    :return: tuple (access_token, expires_in) or (error_message, False)
+    """
+    import time
+    from requests.auth import HTTPBasicAuth
+
+    token_url = "https://{}/oidc/v1/token".format(databricks_instance)
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "{}".format(const.USER_AGENT_CONST),
+    }
+    _LOGGER.debug("Request made to the Databricks from Splunk user: {}".format(get_current_user(session_key)))
+    data_dict = {"grant_type": "client_credentials", "scope": "all-apis"}
+    data_encoded = urlencode(data_dict)
+
+    # Handle proxy settings for OAuth M2M
+    # Note: "use_for_oauth" means "use proxy ONLY for AAD token generation"
+    # Since OAuth M2M endpoint is on the Databricks instance (not AAD),
+    # we should skip proxy when use_for_oauth is true
+    if proxy_settings:
+        if is_true(proxy_settings.get("use_for_oauth")):
+            _LOGGER.info(
+                "Skipping the usage of proxy for OAuth M2M as 'Use Proxy for OAuth' parameter is checked."
+            )
+            proxy_settings_copy = None
+        else:
+            proxy_settings_copy = proxy_settings.copy()
+            proxy_settings_copy.pop("use_for_oauth", None)
+    else:
+        proxy_settings_copy = None
+
+    while retry:
+        try:
+            resp = requests.post(
+                token_url,
+                headers=headers,
+                data=data_encoded,
+                auth=HTTPBasicAuth(oauth_client_id, oauth_client_secret),
+                proxies=proxy_settings_copy,
+                verify=const.VERIFY_SSL,
+                timeout=const.TIMEOUT
+            )
+            resp.raise_for_status()
+            response = resp.json()
+            oauth_access_token = response.get("access_token")
+            expires_in = response.get("expires_in", 3600)
+            if conf_update:
+                save_databricks_oauth_access_token(
+                    account_name, session_key, oauth_access_token, expires_in, oauth_client_secret
+                )
+            return oauth_access_token, expires_in
+        except Exception as e:
+            retry -= 1
+            if "resp" in locals():
+                error_code = resp.json().get("error")
+                if error_code and error_code in list(const.ERROR_CODE.keys()):
+                    msg = const.ERROR_CODE[error_code]
+                elif str(resp.status_code) in list(const.ERROR_CODE.keys()):
+                    msg = const.ERROR_CODE[str(resp.status_code)]
+                elif resp.status_code not in (200, 201):
+                    msg = (
+                        "Response status: {}. Unable to validate OAuth credentials. "
+                        "Check logs for more details.".format(str(resp.status_code))
+                    )
+            else:
+                msg = (
+                    "Unable to request Databricks instance. "
+                    "Please validate the provided Databricks and "
+                    "Proxy configurations or check the network connectivity."
+                )
+                _LOGGER.error("Error while trying to generate OAuth access token: {}".format(str(e)))
+                _LOGGER.debug(traceback.format_exc())
+            _LOGGER.error(msg)
+            if retry == 0:
+                return msg, False
+
+
 def get_proxy_clear_password(session_key):
     """
     Get clear password from splunk passwords.conf.

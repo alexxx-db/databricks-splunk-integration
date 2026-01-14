@@ -44,11 +44,17 @@ class DatabricksClient(object):
         self.session.timeout = const.TIMEOUT
         if self.auth_type == "PAT":
             self.databricks_token = databricks_configs.get("databricks_pat")
-        else:
+        elif self.auth_type == "AAD":
             self.databricks_token = databricks_configs.get("aad_access_token")
             self.aad_client_id = databricks_configs.get("aad_client_id")
             self.aad_tenant_id = databricks_configs.get("aad_tenant_id")
             self.aad_client_secret = databricks_configs.get("aad_client_secret")
+        elif self.auth_type == "OAUTH_M2M":
+            self.databricks_token = databricks_configs.get("oauth_access_token")
+            self.oauth_client_id = databricks_configs.get("oauth_client_id")
+            self.oauth_client_secret = databricks_configs.get("oauth_client_secret")
+            oauth_token_expiration_str = databricks_configs.get("oauth_token_expiration")
+            self.oauth_token_expiration = float(oauth_token_expiration_str) if oauth_token_expiration_str else 0
 
         if not all([databricks_instance, self.databricks_token]):
             raise Exception("Addon is not configured. Navigate to addon's configuration page to configure the addon.")
@@ -98,6 +104,48 @@ class DatabricksClient(object):
         session.mount("https://", adapter)
         return session
 
+    def should_refresh_oauth_token(self):
+        """
+        Check if OAuth token should be refreshed proactively.
+
+        :return: Boolean - True if token expires within 5 minutes
+        """
+        if not hasattr(self, 'oauth_token_expiration'):
+            return False
+
+        import time
+        current_time = time.time()
+        time_until_expiry = self.oauth_token_expiration - current_time
+
+        # Refresh if token expires within 5 minutes (300 seconds)
+        return time_until_expiry < 300
+
+    def _refresh_oauth_token(self):
+        """Refresh OAuth M2M access token and update session headers."""
+        databricks_configs = utils.get_databricks_configs(self.session_key, self.account_name)
+        proxy_config = databricks_configs.get("proxy_uri")
+
+        result = utils.get_oauth_access_token(
+            self.session_key,
+            self.account_name,
+            self.databricks_instance_url.replace("https://", ""),
+            self.oauth_client_id,
+            self.oauth_client_secret,
+            proxy_config,
+            retry=const.RETRIES,
+            conf_update=True
+        )
+
+        if isinstance(result, tuple) and result[1] == False:
+            raise Exception(result[0])
+
+        access_token, expires_in = result
+        self.databricks_token = access_token
+        import time
+        self.oauth_token_expiration = time.time() + expires_in
+        self.request_headers["Authorization"] = "Bearer {}".format(self.databricks_token)
+        self.session.headers.update(self.request_headers)
+
     def databricks_api(self, method, endpoint, data=None, args=None):
         """
         Common method to hit the API of Databricks instance.
@@ -108,6 +156,11 @@ class DatabricksClient(object):
         :param args: Arguments to be add into the url
         :return: response in the form of dictionary
         """
+        # Proactive OAuth token refresh
+        if self.auth_type == "OAUTH_M2M" and self.should_refresh_oauth_token():
+            _LOGGER.info("OAuth token expiring soon, refreshing proactively.")
+            self._refresh_oauth_token()
+
         run_again = True
         request_url = "{}{}".format(self.databricks_instance_url, endpoint)
         try:
@@ -141,6 +194,11 @@ class DatabricksClient(object):
                         self.databricks_token = db_token
                     self.request_headers["Authorization"] = "Bearer {}".format(self.databricks_token)
                     self.session.headers.update(self.request_headers)
+                elif status_code == 403 and self.auth_type == "OAUTH_M2M" and run_again:
+                    response = None
+                    run_again = False
+                    _LOGGER.info("Refreshing OAuth M2M token.")
+                    self._refresh_oauth_token()
                 elif status_code != 200:
                     response.raise_for_status()
                 else:

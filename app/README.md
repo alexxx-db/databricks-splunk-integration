@@ -99,6 +99,15 @@ To configure the Add-on with Azure Active Directory token authentication, you ne
 * To add the provisioned service principal to the target Azure Databricks workspace, follow [these steps](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/service-principals) and refer [this example](https://docs.microsoft.com/en-us/azure/databricks/dev-tools/api/latest/aad/service-prin-aad-token#--api-access-for-service-principals-that-are-azure-databricks-workspace-users-and-admins)
 * Note that the service principals must be Azure Databricks workspace users and admins.
 
+### Databricks OAuth (M2M) Configuration
+
+To configure the Add-on with Databricks OAuth M2M authentication for service principals:
+
+* Create a service principal in your Databricks workspace, following [these steps](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-m2m.html)
+* Generate OAuth credentials (Client ID and Client Secret) for the service principal
+* OAuth secrets can remain valid for up to two years
+* The add-on automatically refreshes tokens before expiration (tokens typically expire after 1 hour)
+
 ## 1. Add Databricks Credentials
 To configure Databricks Add-on for Splunk, navigate to Databricks Add-on for Splunk, click on "Configuration", go to the "Databricks Credentials" tab, click on "Add", fill in the details asked, and click "Save". Field descriptions are as below:
 
@@ -109,11 +118,13 @@ To configure Databricks Add-on for Splunk, navigate to Databricks Add-on for Spl
 | 'databricksquery' to run on | Mode through which databricksquery command should execute | Yes |
 | Databricks Cluster Name   | Name of the Databricks cluster to use for query and notebook execution. A user can override this value while executing the custom command.                                                                                                         |      No
 | Databricks Warehouse ID   | ID of the Databricks warehouse to use for query execution. A user can override this value while executing the custom command. | No
-| Authentication Method     | SingleSelect: Authentication via Azure Active Directory or using a Personal Access Token |      Yes
+| Authentication Method     | SingleSelect: Authentication via Personal Access Token, Azure Active Directory, or Databricks OAuth (M2M) |      Yes
 | Databricks Access Token   | [Auth: Personal Access Token] Databricks personal access token to use for authentication. Refer [Generate Databricks Access Token](https://docs.databricks.com/dev-tools/api/latest/authentication.html#generate-a-personal-access-token) document to generate the access token. |      Yes                                                                                              |
 | Client Id   | [Auth: Azure Active Directory] Azure Active Directory Client Id from your Azure portal.|      Yes
 | Tenant Id   | [Auth: Azure Active Directory] Databricks Application(Tenant) Id from your Azure portal.|      Yes
 | Client Secret  | [Auth: Azure Active Directory] Azure Active Directory Client Secret from your Azure portal.|      Yes
+| OAuth Client ID   | [Auth: Databricks OAuth (M2M)] OAuth Client ID from your Databricks service principal. Refer [OAuth M2M documentation](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-m2m.html) for details. |      Yes
+| OAuth Client Secret  | [Auth: Databricks OAuth (M2M)] OAuth Client Secret from your Databricks service principal.|      Yes
 
 
 ## 2. Configure Proxy (Required only if the requests should go via proxy server)
@@ -128,18 +139,18 @@ Navigate to Databricks Add-on for Splunk, click on "Configuration", go to the "P
 | Username              | Username for proxy authentication (Username and Password are inclusive fields) | No        |
 | Password              | Password for proxy authentication (Username and Password are inclusive fields) | No        |
 | Remote DNS resolution | Enabling this option allows the proxy server to handle DNS resolution for clients, enhancing privacy and centralizing control over DNS requests.                                                  | No        |
-| Use Proxy for OAuth   | Check this box if you want to use a proxy just for AAD token generation (https://login.microsoftonline.com/). All other network calls will skip the proxy even if it's enabled.                  | No        |
+| Use Proxy for OAuth   | Check this box if you want to use a proxy just for Azure AD token generation (https://login.microsoftonline.com/). All other network calls (including Databricks API and OAuth M2M) will skip the proxy even if it's enabled.                  | No        |
 
 
 **Steps to configure an HTTPS proxy**
 
 * Select Proxy Type as "http" and provide the other required details for proxy configuration.
-* To install the proxy certificate in the Add-on , Go to folder $SPLUNK_HOME/etc/apps/TA-Databricks/bin/ta_databricks/aob_py3/certifi
+* To install the proxy certificate in the Add-on , Go to folder `$SPLUNK_HOME/etc/apps/TA-Databricks/bin/ta_databricks/aob_py3/certifi`
 * Put the proxy certificate at the end of the file named cacert.pem
 
 Once the above steps are completed, all the following requests will be directed through the proxy.
 
-**Note**: $SPLUNK_HOME denotes the path where Splunk is installed. Ex: /opt/splunk
+**Note**: `$SPLUNK_HOME` denotes the path where Splunk is installed. Ex: `/opt/splunk`
 
 After enabling the proxy, re-visit the "Databricks Credentials" tab, fill in the details, and click on "Save" to verify if the proxy is working.
 
@@ -155,6 +166,7 @@ Navigate to Databricks Add-on for Splunk, click on "Configuration", go to the "A
 | Query Result Limit    | Maximum limit of rows in query result for databricksquery command.          | Yes       |
 | Index                 | Index in which you want to store the command execution details.             | Yes       |
 | Max Thread Count    | Maximum number of threads to be allowed for databricksquery command to fetch the results. | Yes |
+
 # CUSTOM COMMANDS:
 Any user will be able to execute the custom command. Once the admin user configures Databricks Add-on for Splunk successfully, they can execute custom commands. With custom commands, users can:
 
@@ -178,8 +190,8 @@ This custom command helps users to query their data present in the Databricks ta
 | command_timeout | No       | Time to wait in seconds for query completion. Default value: 300 |
 
 * Syntax
-    - Syntax 1 : | databricksquery account_name="<account_name>" warehouse_id="<warehouse_id>" query="<SQL_query>" command_timeout=<timeout_in_seconds> limit=<query_result_limit>
-    - Syntax 2 : | databricksquery account_name="<account_name>" cluster="<cluster_name>" query="<SQL_query>" command_timeout=<timeout_in_seconds>
+    - Syntax 1 : `| databricksquery account_name="<account_name>" warehouse_id="<warehouse_id>" query="<SQL_query>" command_timeout=<timeout_in_seconds> limit=<query_result_limit>`
+    - Syntax 2 : `| databricksquery account_name="<account_name>" cluster="<cluster_name>" query="<SQL_query>" command_timeout=<timeout_in_seconds>`
 
 * Output
 
@@ -187,9 +199,13 @@ The command gives the output of the query in tabular format. It will return an e
 
 * Example
 
+```
 | databricksquery account_name="db_account" query="SELECT * FROM default.people WHERE age>30" warehouse_id=12345a67 command_timeout=60 limit=500
+```
 
+```
 | databricksquery query="SELECT * FROM default.people WHERE age>30" cluster="test_cluster" command_timeout=60 account_name="AAD_account"
+```
 
 ## 2. databricksrun
 
@@ -208,7 +224,9 @@ This custom command helps users to submit a one-time run without creating a job.
 
 * Syntax
 
+```
 | databricksrun account_name="<account_name>" notebook_path="<path_to_notebook>" run_name="<run_name>" cluster="<cluster_name>" revision_timestamp=<revision_timestamp> notebook_params="<params_for_job_execution>" 
+```
 
 * Output
 
@@ -216,11 +234,15 @@ The command will give the details about the executed run through job.
 
 * Example 1
 
+```
 | databricksrun account_name="db_account" notebook_path="/path/to/test_notebook" run_name="run_comm" cluster="test_cluster" revision_timestamp=1609146477 notebook_params="key1=value1||key2=value2" 
+```
 
 * Example 2
 
+```
 | databricksrun account_name="db_account" notebook_path="/path/to/test_notebook" run_name="run_comm" cluster="test_cluster" revision_timestamp=1609146477 notebook_params="key1=value with \"double quotes\" in it||key2=value2" 
+```
 
 ## 3. databricksjob  
 
@@ -236,7 +258,9 @@ This custom command helps users to run an already created job from Splunk.
 
 * Syntax
 
+```
 | databricksjob account_name="<account_name>" job_id=<job_id> notebook_params="<params_for_job_execution>" 
+```
 
 * Output
 
@@ -244,11 +268,15 @@ The command will give the details about the executed run through job.
 
 * Example 1
 
+```
 | databricksjob account_name="db_account" job_id=2 notebook_params="key1=value1||key2=value2" 
+```
 
 * Example 2
 
+```
 | databricksjob account_name="db_account" job_id=2 notebook_params="key1=value with \"double quotes\" in it||key2=value2" 
+```
 
 # Macro
 Macro `databricks_index_macro` specifies the index in which you want to store the command execution details.
@@ -261,7 +289,7 @@ To modify Macro from Splunk UI,
 4. Click on the `Save` button.
 
 # SAVED SEARCH
-Saved search `databricks_update_run_execution_status` uses databricksrunstatus custom command to fetch run execution status and ingest updated details in Splunk for runs invoked through databricksrun and databricksjob command.
+Saved search `databricks_update_run_execution_status` uses `databricksrunstatus` custom command to fetch run execution status and ingest updated details in Splunk for runs invoked through `databricksrun` and `databricksjob` command.
 It runs every 5 minutes and ingests the data with updated execution status in Splunk.
 
 # DASHBOARDS
@@ -271,7 +299,7 @@ This app contains the following dashboards:
 
 * Launch Notebook: The dashboard allows users to launch a notebook on their Databricks cluster by providing the required parameters. The users can then navigate to the job results page on the Databricks instance from the generated link on the dashboard.
 
-The dashboards will be accessible to all the users. A user with admin_all_objects capability can navigate to “<splunk_instance_host_or_ip>:<splunk_web_port>/en-US/app/TA-Databricks/dashboards” to modify the permissions for “Databricks Job Execution Details” dashboard.
+The dashboards will be accessible to all the users. A user with admin_all_objects capability can navigate to `<splunk_instance_host_or_ip>:<splunk_web_port>/en-US/app/TA-Databricks/dashboards` to modify the permissions for "Databricks Job Execution Details" dashboard.
 
 # ALERT ACTIONS
 The `Launch Notebook` alert action is used to launch a parameterized notebook based on the provided parameters. The alert can be scheduled or run as ad-hoc. It can also be used as an Adaptive response action in "Enterprise Security> Incident review dashboard".
@@ -290,22 +318,27 @@ When this alert action is run as an Adaptive response action from "Enterprise Se
 * Restart Splunk.
 
 ## Upgrade from Databricks Add-On for Splunk v1.4.1 to v1.4.2
+
 * Follow the General upgrade steps section.
 * No additional steps are required.
 
 ## Upgrade from Databricks Add-On for Splunk v1.4.0 to v1.4.1
+
 * Follow the General upgrade steps section.
 * No additional steps are required.
 
 ## Upgrade from Databricks Add-On for Splunk v1.3.1 to v1.4.0
+
 * Follow the General upgrade steps section.
 * No additional steps are required.
 
 ## Upgrade from Databricks Add-On for Splunk v1.3.0 to v1.3.1
+
 * Follow the General upgrade steps section.
 * No additional steps are required.
 
 ## Upgrade from Databricks Add-On for Splunk v1.2.0 to v1.3.0
+
 * Follow the General upgrade steps section.
 * No additional steps are required.
 
@@ -323,6 +356,7 @@ Follow the below steps to upgrade the Add-on to 1.2.0
 
 
 ## Upgrade from Databricks Add-On for Splunk v1.0.0 to v1.1.0
+
 No special steps are required. Upload and install v1.1.0 of the add-on normally.
 
 
@@ -341,23 +375,27 @@ Some of the components included in "Databricks Add-on for Splunk" are licensed u
 
 # TROUBLESHOOTING
 * Authentication Failure: Check the network connectivity and verify that the configuration details provided are correct.
-* For any other unknown failure, please check the log files $SPLUNK_HOME/var/log/ta_databricks*.log to get more details on the issue.
+* For any other unknown failure, please check the log files `$SPLUNK_HOME/var/log/ta_databricks*.log` to get more details on the issue.
 * The Add-on does not require a restart after the installation for all functionalities to work. However, the icons will be visible after one Splunk restart post-installation. 
 * If all custom commands/notebooks fail to run with the https response code [403] then most probably the client secret has expired. Please regenerate your client secret in this case on your Azure portal and configure the add-on again with the new client secret. Set the client secret's expiration time to a custom value that you see fit. Refer this [guide](https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app#add-a-client-secret) for setting a client secret in Azure Active Directory.
 * If the proxy is enabled and Use Proxy for OAuth is checked, and custom commands fail to run and throw the below mentioned error.
 HTTPSConnectionPool(host=<host>, port=443): Max retries exceeded with url: <url> (Caused by NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7fd9a01fb050>: Failed to establish a new connection: [Errno 110] Connection timed out'))
 In this case, uncheck 'Use Proxy for OAuth' and save the Proxy configuration, and re-run the custom command again.
+* For OAuth M2M authentication, if commands fail with "Invalid OAuth credentials" error, verify that:
+  - The service principal has been created in the Databricks workspace
+  - The OAuth client secret has not expired
+  - The service principal has appropriate permissions in the workspace
 
 **Note**: $SPLUNK_HOME denotes the path where Splunk is installed. Ex: /opt/splunk
 
 # UNINSTALL & CLEANUP STEPS
 
-* Remove $SPLUNK_HOME/etc/apps/TA-Databricks/
-* Remove $SPLUNK_HOME/var/log/TA-Databricks/
-* Remove $SPLUNK_HOME/var/log/splunk/**ta_databricks*.log**
+* Remove `$SPLUNK_HOME/etc/apps/TA-Databricks/`
+* Remove `$SPLUNK_HOME/var/log/TA-Databricks/`
+* Remove `$SPLUNK_HOME/var/log/splunk/**ta_databricks*.log**`
 * To reflect the cleanup changes in UI, restart the Splunk instance. Refer [Start Splunk](https://docs.splunk.com/Documentation/Splunk/8.0.6/Admin/StartSplunk) documentation to get information on how to restart Splunk.
 
-**Note**: $SPLUNK_HOME denotes the path where Splunk is installed. Ex: /opt/splunk
+**Note**: `$SPLUNK_HOME` denotes the path where Splunk is installed. Ex: `/opt/splunk`
 
 # SUPPORT
 * This app is not officially supported by Databricks. Please send an email to cybersecurity@databricks.com for help.

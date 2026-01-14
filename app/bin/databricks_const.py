@@ -54,4 +54,7 @@ ERROR_CODE = {
     "500": "Internal server error.",
     "400": "Bad request. The request is malformed.",
     "429": "API limit exceeded. Please try again after some time.",
+    "invalid_client": "Invalid OAuth Client ID or Client Secret provided.",
+    "unauthorized_client": "Service principal is not authorized for this workspace.",
+    "invalid_grant": "The provided OAuth credentials are invalid or expired.",
 }
